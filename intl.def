@@ -1,0 +1,7 @@
+EXPORTS
+  gettext
+  dgettext
+  dcgettext
+  textdomain
+  bindtextdomain
+  bind_textdomain_codeset
