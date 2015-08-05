@@ -720,6 +720,8 @@ getlocale(int category)
         static char buf[1024];
         if (GetEnvironmentVariable("LC_MESSAGES", buf, sizeof(buf)) != 0)
             return buf;
+        if (GetEnvironmentVariable("LANG", buf, sizeof(buf)) != 0)
+            return buf;
         return getdefaultlocale();
     }
     return setlocale(category, NULL);
