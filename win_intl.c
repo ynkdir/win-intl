@@ -590,12 +590,25 @@ Catalog_gettext(struct Catalog *self, const char *msgid)
 static int
 Catalog_getindex(struct Catalog *self, const char *msgid)
 {
-    // FIXME: binary search
-    int i;
+    int left;
+    int right;
+    int mid;
+    int c;
 
-    for (i = 0; i < self->size; ++i)
-        if (strcmp(self->original[i], msgid) == 0)
-            return i;
+    left = 0;
+    right = self->size;
+    while (left < right)
+    {
+        mid = (left + right) / 2;
+        c = strcmp(self->original[mid], msgid);
+        if (c == 0)
+            return mid;
+        else if (c < 0)
+            left = mid + 1;
+        else
+            right = mid;
+    }
+
     return -1;
 }
 
