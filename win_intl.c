@@ -51,7 +51,7 @@ static BOOL Domain_set_codeset(struct Domain *self, const char *codeset);
 static const char *Domain_get_codeset(struct Domain *self);
 static const char *Domain_cgettext(struct Domain *self, const char *msgid, int category);
 static struct Catalog *Domain_getcatalog(struct Domain *self, int category);
-static const char *Domain_mo_path(struct Domain *self, int category);
+static const char *Domain_mo_path(struct Domain *self, int category, const char *locale);
 
 struct Catalog {
     const char *locale;
@@ -82,11 +82,13 @@ static const char *getdefaultlocale();
 static const char *getlocalecodeset(const char *locale);
 static const char *getcategoryname(int category);
 static struct Domain *getdomain(const char *domainname);
+static BOOL fileexists(const char *path);
 static char *readfile(const char *path);
 static int readint32(const char *p);
 static char *convert_string(const char *s, const char *fromenc, const char *toenc);
 static char *str_iconv(const char *fromcode, const char *tocode, const char *str, size_t len);
-static char *lcid_to_name(LCID lcid);
+static const char *localename_underscore(const char *name);
+static const char *localename_shortname(const char *name);
 
 static struct Slist *domain_head = NULL;
 static struct Domain *cur_domain = NULL;
@@ -381,11 +383,39 @@ Domain_getcatalog(struct Domain *self, int category)
         }
     }
 
-    mopath = Domain_mo_path(self, category);
+    mopath = Domain_mo_path(self, category, locale);
     if (mopath == NULL)
     {
         Catalog_delete(c);
         return NULL;
+    }
+
+    // http://www.microsoft.com/resources/msdn/goglobal/default.mspx
+
+    // FIXME: Workaround may cause trouble.  We should not do that then.
+
+    // WORKAROUND 1: try underscore name
+    if (!fileexists(mopath))
+    {
+        locale = localename_underscore(locale);
+        mopath = Domain_mo_path(self, category, locale);
+        if (mopath == NULL)
+        {
+            Catalog_delete(c);
+            return NULL;
+        }
+    }
+
+    // WORKAROUND 2: try short name
+    if (!fileexists(mopath))
+    {
+        locale = localename_shortname(locale);
+        mopath = Domain_mo_path(self, category, locale);
+        if (mopath == NULL)
+        {
+            Catalog_delete(c);
+            return NULL;
+        }
     }
 
     if (!Catalog_load_mo(c, mopath))
@@ -407,20 +437,15 @@ Domain_getcatalog(struct Domain *self, int category)
 }
 
 static const char *
-Domain_mo_path(struct Domain *self, int category)
+Domain_mo_path(struct Domain *self, int category, const char *locale)
 {
     const char *dirname;
-    const char *locale;
     const char *categoryname;
     static char buf[1024];
 
     dirname = Domain_get_dirname(self);
     if (dirname == NULL)
         dirname = DEFAULT_DIRNAME;
-
-    locale = getlocale(category);
-    if (locale == NULL)
-        return NULL;
 
     categoryname = getcategoryname(category);
     if (categoryname == NULL)
@@ -704,18 +729,10 @@ getlocale(int category)
 static const char *
 getdefaultlocale()
 {
-    LANGID lcid;
-    char *p;
     wchar_t wname[32];
     static char name[32];
 
-    lcid = GetUserDefaultUILanguage();
-
-    p = lcid_to_name(lcid);
-    if (p != NULL)
-        return p;
-
-    if (LCIDToLocaleName(lcid, wname, 32, 0) == 0)
+    if (LCIDToLocaleName(GetUserDefaultUILanguage(), wname, 32, 0) == 0)
         return NULL;
 
     if (wcstombs(name, wname, wcslen(wname) + 1) == -1)
@@ -800,6 +817,12 @@ getdomain(const char *domainname)
     s->data = d;
 
     return d;
+}
+
+static BOOL
+fileexists(const char *path)
+{
+    return GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES;
 }
 
 static char *
@@ -943,139 +966,33 @@ onerror:
     return NULL;
 }
 
-// WORKAROUND:
-// list is from // https://msdn.microsoft.com/library/cc392381.aspx
-struct LCIDName {
-    LCID lcid;
-    const char *name;
-} LCIDNames[] = {
-    {0x0436, "af"},
-    {0x0439, "hi"},
-    {0x041C, "sq"},
-    {0x040E, "hu"},
-    {0x3801, "ar-ae"},
-    {0x040F, "is"},
-    {0x3C01, "ar-bh"},
-    {0x0421, "in"},
-    {0x1401, "ar-dz"},
-    {0x0410, "it"},
-    {0x0C01, "ar-eg"},
-    {0x0810, "it-ch"},
-    {0x0801, "ar-iq"},
-    {0x0411, "ja"},
-    {0x2C01, "ar-jo"},
-    {0x0412, "ko"},
-    {0x3401, "ar-kw"},
-    {0x0426, "lv"},
-    {0x3001, "ar-lb"},
-    {0x0427, "lt"},
-    {0x1001, "ar-ly"},
-    {0x042F, "mk"},
-    {0x1801, "ar-ma"},
-    {0x043E, "ms"},
-    {0x2001, "ar-om"},
-    {0x043A, "mt"},
-    {0x4001, "ar-qa"},
-    {0x0414, "no"},
-    {0x0401, "ar-sa"},
-    {0x0415, "pl"},
-    {0x2801, "ar-sy"},
-    {0x0816, "pt"},
-    {0x1C01, "ar-tn"},
-    {0x0416, "pt-br"},
-    {0x2401, "ar-ye"},
-    {0x0417, "rm"},
-    {0x042D, "eu"},
-    {0x0418, "ro"},
-    {0x0423, "be"},
-    {0x0818, "ro-mo"},
-    {0x0402, "bg"},
-    {0x0419, "ru"},
-    {0x0403, "ca"},
-    {0x0819, "ru-mo"},
-    {0x0804, "zh-cn"},
-    {0x0C1A, "sr"},
-    {0x0C04, "zh-hk"},
-    {0x0432, "tn"},
-    {0x1004, "zh-sg"},
-    {0x0424, "sl"},
-    {0x0404, "zh-tw"},
-    {0x041B, "sk"},
-    {0x041A, "hr"},
-    {0x042E, "sb"},
-    {0x0405, "cs"},
-    {0x040A, "es"},
-    {0x0406, "da"},
-    {0x2C0A, "es-ar"},
-    {0x0413, "nl"},
-    {0x400A, "es-bo"},
-    {0x0813, "nl-be"},
-    {0x340A, "es-cl"},
-    {0x0C09, "en-au"},
-    {0x240A, "es-co"},
-    {0x2809, "en-bz"},
-    {0x140A, "es-cr"},
-    {0x1009, "en-ca"},
-    {0x1C0A, "es-do"},
-    {0x1809, "en-ie"},
-    {0x300A, "es-ec"},
-    {0x2009, "en-jm"},
-    {0x100A, "es-gt"},
-    {0x1409, "en-nz"},
-    {0x480A, "es-hn"},
-    {0x1C09, "en-za"},
-    {0x080A, "es-mx"},
-    {0x2C09, "en-tt"},
-    {0x4C0A, "es-ni"},
-    {0x0809, "en-gb"},
-    {0x180A, "es-pa"},
-    {0x0409, "en-us"},
-    {0x280A, "es-pe"},
-    {0x0425, "et"},
-    {0x500A, "es-pr"},
-    {0x0429, "fa"},
-    {0x3C0A, "es-py"},
-    {0x040B, "fi"},
-    {0x440A, "es-sv"},
-    {0x0438, "fo"},
-    {0x380A, "es-uy"},
-    {0x040C, "fr"},
-    {0x200A, "es-ve"},
-    {0x080C, "fr-be"},
-    {0x0430, "sx"},
-    {0x0C0C, "fr-ca"},
-    {0x041D, "sv"},
-    {0x140C, "fr-lu"},
-    {0x081D, "sv-fi"},
-    {0x100C, "fr-ch"},
-    {0x041E, "th"},
-    {0x043C, "gd"},
-    {0x041F, "tr"},
-    {0x0407, "de"},
-    {0x0431, "ts"},
-    {0x0C07, "de-at"},
-    {0x0422, "uk"},
-    {0x1407, "de-li"},
-    {0x0420, "ur"},
-    {0x1007, "de-lu"},
-    {0x042A, "vi"},
-    {0x0807, "de-ch"},
-    {0x0434, "xh"},
-    {0x0408, "el"},
-    {0x043D, "ji"},
-    {0x040D, "he"},
-    {0x0435, "zu"},
-    {0, NULL}
-};
-
-static char *
-lcid_to_name(LCID lcid)
+// ja-jp => ja_jp
+static const char *
+localename_underscore(const char *name)
 {
-    int i;
+    char *p;
+    static char buf[32];
 
-    for (i = 0; LCIDNames[i].lcid != 0; ++i)
-        if (LCIDNames[i].lcid == lcid)
-            return LCIDNames[i].name;
-    return NULL;
+    strcpy(buf, name);
+    for (p = buf; *p != '\0'; ++p)
+        if (*p == '-')
+            *p = '_';
+    return buf;
+}
+
+// ja-jp => ja
+static const char *localename_shortname(const char *name)
+{
+    char *p;
+    static char buf[32];
+
+    strcpy(buf, name);
+    for (p = buf; *p != '\0'; ++p)
+        if (*p == '-' || *p == '_')
+        {
+            *p = '\0';
+            break;
+        }
+    return buf;
 }
 
