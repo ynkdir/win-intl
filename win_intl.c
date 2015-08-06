@@ -743,24 +743,33 @@ getdefaultlocale()
     return name;
 }
 
-// FIXME: Name (Japanese_Japan.932) returned by setlocale() doesn't work.
 static const char *
 getlocalecodeset(const char *locale)
 {
     wchar_t wlocale[128];
     wchar_t wcodeset[32];
     static char codeset[32];
+    char *p;
 
     if (mbstowcs(wlocale, locale, strlen(locale) + 1) == -1)
         return NULL;
 
-    if (GetLocaleInfoEx(wlocale, LOCALE_IDEFAULTCODEPAGE, wcodeset, 32) == 0)
-        return NULL;
+    if (GetLocaleInfoEx(wlocale, LOCALE_IDEFAULTCODEPAGE, wcodeset, 32) != 0)
+    {
+        if (wcstombs(codeset, wcodeset, wcslen(wcodeset) + 1) == -1)
+            return NULL;
+        return codeset;
+    }
 
-    if (wcstombs(codeset, wcodeset, wcslen(wcodeset) + 1) == -1)
-        return NULL;
+    // Get codeset from Japanese_Japan.932 form.
+    p = strchr(locale, '.');
+    if (p != NULL)
+    {
+        strcpy(codeset, p + 1);
+        return codeset;
+    }
 
-    return codeset;
+    return NULL;
 }
 
 static const char *
