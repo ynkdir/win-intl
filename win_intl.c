@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "win_iconv.c"
+#include <iconv.h>
 
 #define DEFAULT_DIRNAME "\\share\\locale"
 
