@@ -1006,7 +1006,8 @@ localename_underscore(const char *name)
 }
 
 // ja-jp => ja
-static const char *localename_shortname(const char *name)
+static const char *
+localename_shortname(const char *name)
 {
     char *p;
     static char buf[32];
