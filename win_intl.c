@@ -84,7 +84,6 @@ static const char *getcategoryname(int category);
 static struct Domain *getdomain(const char *domainname);
 static char *readfile(const char *path);
 static int readint32(const char *p);
-static char *convert_string(const char *s, const char *fromenc, const char *toenc);
 static char *str_iconv(const char *fromcode, const char *tocode, const char *str, size_t len);
 
 static struct Slist *domain_head = NULL;
