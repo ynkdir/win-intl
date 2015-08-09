@@ -705,7 +705,7 @@ Catalog_load_mo(struct Catalog *self, const char *path)
     for (i = 0; i < N; ++i)
         self->encoded[i] = NULL;
 
-    // FIXME: specification?
+    // Get charset from header entry
     i = Catalog_getindex(self, "");
     if (i != -1)
     {
@@ -721,16 +721,6 @@ Catalog_load_mo(struct Catalog *self, const char *path)
             self->mocodeset[len] = '\0';
         }
     }
-
-    if (self->mocodeset == NULL)
-    {
-        p = getlocalecodeset(Catalog_get_locale(self));
-        if (p != NULL)
-            self->mocodeset = strdup(p);
-    }
-
-    if (self->mocodeset == NULL)
-        return FALSE;
 
     return TRUE;
 }
