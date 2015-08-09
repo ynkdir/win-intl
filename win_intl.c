@@ -51,7 +51,7 @@ static BOOL Domain_set_codeset(struct Domain *self, const char *codeset);
 static const char *Domain_get_codeset(struct Domain *self);
 static const char *Domain_cgettext(struct Domain *self, const char *msgid, int category);
 static struct Catalog *Domain_getcatalog(struct Domain *self, int category);
-static const char *Domain_mo_path(struct Domain *self, int category, const char *locale);
+static char *Domain_mo_path(struct Domain *self, int category, const char *locale);
 
 struct Catalog {
     char *locale;
@@ -340,7 +340,7 @@ Domain_getcatalog(struct Domain *self, int category)
     struct Slist *s;
     struct Catalog *c;
     const char *locale;
-    const char *mopath;
+    char *mopath;
 
     locale = getlocale(category);
     if (locale == NULL)
@@ -388,9 +388,12 @@ Domain_getcatalog(struct Domain *self, int category)
 
     if (!Catalog_load_mo(c, mopath))
     {
+        free(mopath);
         Catalog_delete(c);
         return NULL;
     }
+
+    free(mopath);
 
     s = Slist_add(&self->catalog_head);
     if (s == NULL)
@@ -404,12 +407,16 @@ Domain_getcatalog(struct Domain *self, int category)
     return c;
 }
 
-static const char *
+static char *
 Domain_mo_path(struct Domain *self, int category, const char *locale)
 {
+    const char *domainname;
     const char *dirname;
     const char *categoryname;
-    static char buf[1024];
+    char *p;
+    size_t len;
+
+    domainname = Domain_get_dirname(self);
 
     dirname = Domain_get_dirname(self);
     if (dirname == NULL)
@@ -419,9 +426,22 @@ Domain_mo_path(struct Domain *self, int category, const char *locale)
     if (categoryname == NULL)
         return NULL;
 
-    sprintf(buf, "%s\\%s\\%s\\%s.mo", dirname, locale, categoryname, Domain_get_domainname(self));
+    len = strlen(dirname) + strlen("\\") + strlen(locale) + strlen("\\") + strlen(categoryname) + strlen("\\") + strlen(domainname) + strlen(".mo");
 
-    return buf;
+    p = malloc(len + 1);
+    if (p == NULL)
+        return NULL;
+
+    strcpy(p, dirname);
+    strcat(p, "\\");
+    strcat(p, locale);
+    strcat(p, "\\");
+    strcat(p, categoryname);
+    strcat(p, "\\");
+    strcat(p, domainname);
+    strcat(p, ".mo");
+
+    return p;
 }
 
 static struct Catalog *
