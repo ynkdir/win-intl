@@ -734,7 +734,7 @@ getdefaultlocale()
     wchar_t wname[32];
     static char name[32];
 
-    if (LCIDToLocaleName(GetUserDefaultUILanguage(), wname, 32, 0) == 0)
+    if (GetUserDefaultLocaleName(wname, 32) == 0)
         return NULL;
 
     if (wcstombs(name, wname, wcslen(wname) + 1) == -1)
