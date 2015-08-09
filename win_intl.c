@@ -82,7 +82,7 @@ static const char *getdefaultlocale();
 static const char *getlocalecodeset(const char *locale);
 static const char *getcategoryname(int category);
 static struct Domain *getdomain(const char *domainname);
-static char *readfile(const char *path);
+static char *readfile(const char *path, size_t *pfsize);
 static int readint32(const char *p);
 static char *str_iconv(const char *fromcode, const char *tocode, const char *str, size_t len);
 
@@ -628,12 +628,16 @@ Catalog_load_mo(struct Catalog *self, const char *path)
     int O;
     int T;
     int i;
+    int len;
     int off;
     char *p;
-    size_t len;
+    size_t fsize;
 
-    self->modata = readfile(path);
+    self->modata = readfile(path, &fsize);
     if (self->modata == NULL)
+        return FALSE;
+
+    if (fsize < 20)
         return FALSE;
 
     if (readint32(self->modata) != 0x950412de)
@@ -643,8 +647,16 @@ Catalog_load_mo(struct Catalog *self, const char *path)
         return FALSE;
 
     N = readint32(&self->modata[8]);
+    if (N < 0)
+        return FALSE;
+
     O = readint32(&self->modata[12]);
+    if (O < 0 || fsize < O + N * 8)
+        return FALSE;
+
     T = readint32(&self->modata[16]);
+    if (T < 0 || fsize < T + N * 8)
+        return 0;
 
     self->size = N;
 
@@ -654,7 +666,10 @@ Catalog_load_mo(struct Catalog *self, const char *path)
 
     for (i = 0; i < N; ++i)
     {
+        len = readint32(&self->modata[O + i * 8]);
         off = readint32(&self->modata[O + i * 8 + 4]);
+        if (fsize < off + len + 1 || self->modata[off + len] != '\0')
+            return FALSE;
         self->original[i] = &self->modata[off];
     }
 
@@ -664,7 +679,10 @@ Catalog_load_mo(struct Catalog *self, const char *path)
 
     for (i = 0; i < N; ++i)
     {
+        len = readint32(&self->modata[T + i * 8]);
         off = readint32(&self->modata[T + i * 8 + 4]);
+        if (fsize < off + len + 1 || self->modata[off + len] != '\0')
+            return FALSE;
         self->translation[i] = &self->modata[off];
     }
 
@@ -815,7 +833,7 @@ getdomain(const char *domainname)
 }
 
 static char *
-readfile(const char *path)
+readfile(const char *path, size_t *pfsize)
 {
     FILE *f;
     long fsize;
@@ -852,6 +870,9 @@ readfile(const char *path)
         free(p);
         return NULL;
     }
+
+    if (pfsize != NULL)
+        *pfsize = fsize;
 
     return p;
 }
