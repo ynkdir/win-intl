@@ -586,27 +586,38 @@ static const char *
 Catalog_gettext(struct Catalog *self, const char *msgid)
 {
     int i;
-    const char *moenc;
+    char outenc[32];
+    char moenc[32];
     char *p;
+    const char *t;
+    const char *loc;
 
     i = Catalog_getindex(self, msgid);
     if (i == -1)
         return msgid;
 
-    if (Catalog_get_codeset(self) == NULL)
-        return self->translation[i];
-
     if (self->encoded[i] != NULL)
         return self->encoded[i];
 
-    moenc = self->mocodeset;
-    if (moenc == NULL)
-        moenc = getlocalecodeset(Catalog_get_locale(self));
-
-    if (moenc == NULL)
+    t = Catalog_get_codeset(self);
+    if (t == NULL)
+    {
+        loc = getdefaultlocale();
+        if (loc != NULL)
+            t = getlocalecodeset(loc);
+    }
+    if (t == NULL)
         return self->translation[i];
+    strcpy(outenc, t);
 
-    p = str_iconv(moenc, Catalog_get_codeset(self), self->translation[i], -1);
+    t = self->mocodeset;
+    if (t == NULL)
+        t = getlocalecodeset(Catalog_get_locale(self));
+    if (t == NULL)
+        return self->translation[i];
+    strcpy(moenc, t);
+
+    p = str_iconv(moenc, outenc, self->translation[i], -1);
     if (p == NULL)
         return self->translation[i];
 
