@@ -77,9 +77,10 @@ static const char *Catalog_gettext(struct Catalog *self, const char *msgid);
 static int Catalog_getindex(struct Catalog *self, const char *msgid);
 static BOOL Catalog_load_mo(struct Catalog *self, const char *path);
 
-static const char *getlocale(int category);
-static const char *getdefaultlocale();
-static const char *getlocalecodeset(const char *locale);
+static char *getlocale(int category);
+static char *getdefaultlocale();
+static char *getlocalecodeset(const char *locale);
+static char *getdefaultlocalecodeset();
 static const char *getcategoryname(int category);
 static struct Domain *getdomain(const char *domainname);
 static char *readfile(const char *path, size_t *pfsize);
@@ -340,6 +341,7 @@ Domain_getcatalog(struct Domain *self, int category)
     struct Slist *s;
     struct Catalog *c;
     const char *locale;
+    const char *codeset;
     char *mopath;
 
     locale = getlocale(category);
@@ -370,13 +372,19 @@ Domain_getcatalog(struct Domain *self, int category)
         return NULL;
     }
 
-    if (Domain_get_codeset(self) != NULL)
+    codeset = Domain_get_codeset(self);
+    if (codeset == NULL)
+        codeset = getdefaultlocalecodeset();
+    if (codeset == NULL)
     {
-        if (!Catalog_set_codeset(c, Domain_get_codeset(self)))
-        {
-            Catalog_delete(c);
-            return NULL;
-        }
+        Catalog_delete(c);
+        return NULL;
+    }
+
+    if (!Catalog_set_codeset(c, codeset))
+    {
+        Catalog_delete(c);
+        return NULL;
     }
 
     mopath = Domain_mo_path(self, category, locale);
@@ -416,7 +424,7 @@ Domain_mo_path(struct Domain *self, int category, const char *locale)
     char *p;
     size_t len;
 
-    domainname = Domain_get_dirname(self);
+    domainname = Domain_get_domainname(self);
 
     dirname = Domain_get_dirname(self);
     if (dirname == NULL)
@@ -576,38 +584,22 @@ static const char *
 Catalog_gettext(struct Catalog *self, const char *msgid)
 {
     int i;
-    char outenc[32];
-    char moenc[32];
     char *p;
-    const char *t;
-    const char *loc;
 
     i = Catalog_getindex(self, msgid);
     if (i == -1)
         return msgid;
 
+    if (Catalog_get_codeset(self) == NULL)
+        return self->translation[i];
+
+    if (self->mocodeset == NULL)
+        return self->translation[i];
+
     if (self->encoded[i] != NULL)
         return self->encoded[i];
 
-    t = Catalog_get_codeset(self);
-    if (t == NULL)
-    {
-        loc = getdefaultlocale();
-        if (loc != NULL)
-            t = getlocalecodeset(loc);
-    }
-    if (t == NULL)
-        return self->translation[i];
-    strcpy(outenc, t);
-
-    t = self->mocodeset;
-    if (t == NULL)
-        t = getlocalecodeset(Catalog_get_locale(self));
-    if (t == NULL)
-        return self->translation[i];
-    strcpy(moenc, t);
-
-    p = str_iconv(moenc, outenc, self->translation[i], -1);
+    p = str_iconv(self->mocodeset, Catalog_get_codeset(self), self->translation[i], -1);
     if (p == NULL)
         return self->translation[i];
 
@@ -730,68 +722,102 @@ Catalog_load_mo(struct Catalog *self, const char *path)
         }
     }
 
+    if (self->mocodeset == NULL)
+    {
+        p = getlocalecodeset(Catalog_get_locale(self));
+        if (p != NULL)
+            self->mocodeset = strdup(p);
+    }
+
+    if (self->mocodeset == NULL)
+        return FALSE;
+
     return TRUE;
 }
 
-// FIXME: how to get gettext compatible behavior?
-static const char *
+static char *
 getlocale(int category)
 {
+    static char buf[LOCALE_NAME_MAX_LENGTH];
+    char *p;
+
     if (category == LC_MESSAGES)
     {
-        static char buf[1024];
         if (GetEnvironmentVariable("LC_MESSAGES", buf, sizeof(buf)) != 0)
             return buf;
         if (GetEnvironmentVariable("LANG", buf, sizeof(buf)) != 0)
             return buf;
-        return getdefaultlocale();
+        p = getdefaultlocale();
+        if (p != NULL && strcpy_s(buf, sizeof(buf), p) == 0)
+            return buf;
+        return NULL;
     }
-    return setlocale(category, NULL);
+
+    p = setlocale(category, NULL);
+    if (p != NULL && strcpy_s(buf, sizeof(buf), p) == 0)
+        return buf;
+
+    return NULL;
 }
 
-// FIXME:
-static const char *
+static char *
 getdefaultlocale()
 {
-    wchar_t wname[32];
-    static char name[32];
+    static char buf[LOCALE_NAME_MAX_LENGTH];
+    wchar_t wname[LOCALE_NAME_MAX_LENGTH];
+    size_t r;
 
-    if (GetUserDefaultLocaleName(wname, 32) == 0)
+    if (GetUserDefaultLocaleName(wname, LOCALE_NAME_MAX_LENGTH) == 0)
         return NULL;
 
-    if (wcstombs(name, wname, wcslen(wname) + 1) == -1)
+    if (wcstombs_s(&r, buf, sizeof(buf), wname, wcslen(wname) + 1) != 0)
         return NULL;
 
-    return name;
+    return buf;
 }
 
-static const char *
+static char *
 getlocalecodeset(const char *locale)
 {
-    wchar_t wlocale[128];
-    wchar_t wcodeset[32];
-    static char codeset[32];
+    static char buf[LOCALE_NAME_MAX_LENGTH];
+    wchar_t wlocale[LOCALE_NAME_MAX_LENGTH];
+    wchar_t wcodeset[LOCALE_NAME_MAX_LENGTH];
     char *p;
+    size_t r;
 
-    if (mbstowcs(wlocale, locale, strlen(locale) + 1) == -1)
+    if (mbstowcs_s(&r, wlocale, LOCALE_NAME_MAX_LENGTH, locale, strlen(locale) + 1) != 0)
         return NULL;
 
-    if (GetLocaleInfoEx(wlocale, LOCALE_IDEFAULTCODEPAGE, wcodeset, 32) != 0)
+    if (GetLocaleInfoEx(wlocale, LOCALE_IDEFAULTCODEPAGE, wcodeset, LOCALE_NAME_MAX_LENGTH) != 0)
     {
-        if (wcstombs(codeset, wcodeset, wcslen(wcodeset) + 1) == -1)
+        if (wcstombs_s(&r, buf, sizeof(buf), wcodeset, wcslen(wcodeset) + 1) != 0)
             return NULL;
-        return codeset;
+        return buf;
     }
 
     // Get codeset from Japanese_Japan.932 form.
     p = strchr(locale, '.');
-    if (p != NULL)
-    {
-        strcpy(codeset, p + 1);
-        return codeset;
-    }
+    if (p != NULL && strcpy_s(buf, sizeof(buf), p + 1) == 0)
+        return buf;
 
     return NULL;
+}
+
+static char *
+getdefaultlocalecodeset()
+{
+    char *locale;
+    char *codeset;
+
+    locale = getdefaultlocale();
+    if (locale == NULL)
+        return NULL;
+
+    codeset = getlocalecodeset(locale);
+    if (codeset == NULL)
+        return NULL;
+
+    return codeset;
 }
 
 static const char *
