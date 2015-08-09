@@ -82,13 +82,10 @@ static const char *getdefaultlocale();
 static const char *getlocalecodeset(const char *locale);
 static const char *getcategoryname(int category);
 static struct Domain *getdomain(const char *domainname);
-static BOOL fileexists(const char *path);
 static char *readfile(const char *path);
 static int readint32(const char *p);
 static char *convert_string(const char *s, const char *fromenc, const char *toenc);
 static char *str_iconv(const char *fromcode, const char *tocode, const char *str, size_t len);
-static const char *localename_underscore(const char *name);
-static const char *localename_shortname(const char *name);
 
 static struct Slist *domain_head = NULL;
 static struct Domain *cur_domain = NULL;
@@ -388,34 +385,6 @@ Domain_getcatalog(struct Domain *self, int category)
     {
         Catalog_delete(c);
         return NULL;
-    }
-
-    // http://www.microsoft.com/resources/msdn/goglobal/default.mspx
-
-    // FIXME: Workaround may cause trouble.  We should not do that then.
-
-    // WORKAROUND 1: try underscore name
-    if (!fileexists(mopath))
-    {
-        locale = localename_underscore(locale);
-        mopath = Domain_mo_path(self, category, locale);
-        if (mopath == NULL)
-        {
-            Catalog_delete(c);
-            return NULL;
-        }
-    }
-
-    // WORKAROUND 2: try short name
-    if (!fileexists(mopath))
-    {
-        locale = localename_shortname(locale);
-        mopath = Domain_mo_path(self, category, locale);
-        if (mopath == NULL)
-        {
-            Catalog_delete(c);
-            return NULL;
-        }
     }
 
     if (!Catalog_load_mo(c, mopath))
@@ -846,12 +815,6 @@ getdomain(const char *domainname)
     return d;
 }
 
-static BOOL
-fileexists(const char *path)
-{
-    return GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES;
-}
-
 static char *
 readfile(const char *path)
 {
@@ -991,36 +954,5 @@ onerror:
     if (cd != (iconv_t)(-1))
         iconv_close(cd);
     return NULL;
-}
-
-// ja-jp => ja_jp
-static const char *
-localename_underscore(const char *name)
-{
-    char *p;
-    static char buf[32];
-
-    strcpy(buf, name);
-    for (p = buf; *p != '\0'; ++p)
-        if (*p == '-')
-            *p = '_';
-    return buf;
-}
-
-// ja-jp => ja
-static const char *
-localename_shortname(const char *name)
-{
-    char *p;
-    static char buf[32];
-
-    strcpy(buf, name);
-    for (p = buf; *p != '\0'; ++p)
-        if (*p == '-' || *p == '_')
-        {
-            *p = '\0';
-            break;
-        }
-    return buf;
 }
 
