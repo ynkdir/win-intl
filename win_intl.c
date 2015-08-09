@@ -659,7 +659,7 @@ Catalog_load_mo(struct Catalog *self, const char *path)
         return FALSE;
 
     N = readint32(&self->modata[8]);
-    if (N < 0)
+    if (N <= 0)
         return FALSE;
 
     O = readint32(&self->modata[12]);
