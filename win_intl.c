@@ -568,8 +568,10 @@ Catalog_set_codeset(struct Catalog *self, const char *codeset)
         for (i = 0; i < self->size; ++i)
         {
             if (self->encoded[i] != NULL)
+            {
                 free((void *)self->encoded[i]);
-            self->encoded[i] = NULL;
+                self->encoded[i] = NULL;
+            }
         }
     }
 
