@@ -35,9 +35,9 @@ static struct Slist *Slist_add(struct Slist **phead);
 static void Slist_delete(struct Slist **phead, struct Slist *x);
 
 struct Domain {
-    const char *domainname;
-    const char *dirname;
-    const char *codeset;
+    char *domainname;
+    char *dirname;
+    char *codeset;
     struct Slist *catalog_head;
 };
 
@@ -54,9 +54,9 @@ static struct Catalog *Domain_getcatalog(struct Domain *self, int category);
 static const char *Domain_mo_path(struct Domain *self, int category, const char *locale);
 
 struct Catalog {
-    const char *locale;
+    char *locale;
     int category;
-    const char *codeset;
+    char *codeset;
     int size;
     char **original;
     char **translation;
@@ -182,7 +182,7 @@ Slist_add(struct Slist **phead)
 {
     struct Slist *s;
 
-    s = (struct Slist *)malloc(sizeof(struct Slist));
+    s = malloc(sizeof(struct Slist));
     if (s == NULL)
         return NULL;
 
@@ -203,7 +203,7 @@ Slist_delete(struct Slist **phead, struct Slist *x)
         if (s == x)
         {
             *pn = s->next;
-            free((void *)x);
+            free(x);
             break;
         }
         pn = &s->next;
@@ -215,7 +215,7 @@ Domain_new()
 {
     struct Domain *self;
 
-    self = (struct Domain *)malloc(sizeof(struct Domain));
+    self = malloc(sizeof(struct Domain));
     if (self == NULL)
         return NULL;
 
@@ -231,13 +231,13 @@ static void
 Domain_delete(struct Domain *self)
 {
     if (self->domainname != NULL)
-        free((void *)self->domainname);
+        free(self->domainname);
 
     if (self->dirname != NULL)
-        free((void *)self->dirname);
+        free(self->dirname);
 
     if (self->codeset != NULL)
-        free((void *)self->codeset);
+        free(self->codeset);
 
     while (self->catalog_head != NULL)
     {
@@ -251,14 +251,14 @@ Domain_delete(struct Domain *self)
 static BOOL
 Domain_set_domainname(struct Domain *self, const char *domainname)
 {
-    const char *p;
+    char *p;
 
     p = strdup(domainname);
     if (p == NULL)
         return FALSE;
 
     if (self->domainname != NULL)
-        free((void *)self->domainname);
+        free(self->domainname);
 
     self->domainname = p;
 
@@ -274,14 +274,14 @@ Domain_get_domainname(struct Domain *self)
 static BOOL
 Domain_set_dirname(struct Domain *self, const char *dirname)
 {
-    const char *p;
+    char *p;
 
     p = strdup(dirname);
     if (p == NULL)
         return FALSE;
 
     if (self->dirname != NULL)
-        free((void *)self->dirname);
+        free(self->dirname);
 
     self->dirname = p;
 
@@ -299,14 +299,14 @@ Domain_set_codeset(struct Domain *self, const char *codeset)
 {
     struct Slist *s;
     struct Catalog *c;
-    const char *p;
+    char *p;
 
     p = strdup(codeset);
     if (p == NULL)
         return FALSE;
 
     if (self->codeset != NULL)
-        free((void *)self->codeset);
+        free(self->codeset);
 
     self->codeset = p;
 
@@ -461,7 +461,7 @@ Catalog_new()
 {
     struct Catalog *self;
 
-    self = (struct Catalog *)malloc(sizeof(struct Catalog));
+    self = malloc(sizeof(struct Catalog));
     if (self == NULL)
         return NULL;
 
@@ -484,45 +484,45 @@ Catalog_delete(struct Catalog *self)
     int i;
 
     if (self->locale != NULL)
-        free((void *)self->locale);
+        free(self->locale);
 
     if (self->codeset != NULL)
-        free((void *)self->codeset);
+        free(self->codeset);
 
     if (self->original != NULL)
-        free((void *)self->original);
+        free(self->original);
 
     if (self->translation != NULL)
-        free((void *)self->translation);
+        free(self->translation);
 
     if (self->encoded != NULL)
     {
         for (i = 0; i < self->size; ++i)
             if (self->encoded[i] != NULL)
-                free((void *)self->encoded[i]);
-        free((void *)self->encoded);
+                free(self->encoded[i]);
+        free(self->encoded);
     }
 
     if (self->modata != NULL)
-        free((void *)self->modata);
+        free(self->modata);
 
     if (self->mocodeset != NULL)
-        free((void *)self->mocodeset);
+        free(self->mocodeset);
 
-    free((void *)self);
+    free(self);
 }
 
 static BOOL
 Catalog_set_locale(struct Catalog *self, const char *locale)
 {
-    const char *p;
+    char *p;
 
     p = strdup(locale);
     if (p == NULL)
         return FALSE;
 
     if (self->locale != NULL)
-        free((void *)self->locale);
+        free(self->locale);
 
     self->locale = p;
 
@@ -551,7 +551,7 @@ Catalog_get_category(struct Catalog *self)
 static BOOL
 Catalog_set_codeset(struct Catalog *self, const char *codeset)
 {
-    const char *p;
+    char *p;
     int i;
 
     p = strdup(codeset);
@@ -559,7 +559,7 @@ Catalog_set_codeset(struct Catalog *self, const char *codeset)
         return FALSE;
 
     if (self->codeset != NULL)
-        free((void *)self->codeset);
+        free(self->codeset);
 
     self->codeset = p;
 
@@ -569,7 +569,7 @@ Catalog_set_codeset(struct Catalog *self, const char *codeset)
         {
             if (self->encoded[i] != NULL)
             {
-                free((void *)self->encoded[i]);
+                free(self->encoded[i]);
                 self->encoded[i] = NULL;
             }
         }
@@ -680,7 +680,7 @@ Catalog_load_mo(struct Catalog *self, const char *path)
 
     self->size = N;
 
-    self->original = (char **)malloc(sizeof(const char *) * N);
+    self->original = malloc(sizeof(const char *) * N);
     if (self->original == NULL)
         return FALSE;
 
@@ -690,7 +690,7 @@ Catalog_load_mo(struct Catalog *self, const char *path)
         self->original[i] = &self->modata[off];
     }
 
-    self->translation = (char **)malloc(sizeof(const char *) * N);
+    self->translation = malloc(sizeof(const char *) * N);
     if (self->translation == NULL)
         return FALSE;
 
@@ -700,7 +700,7 @@ Catalog_load_mo(struct Catalog *self, const char *path)
         self->translation[i] = &self->modata[off];
     }
 
-    self->encoded = (char **)malloc(sizeof(const char *) * N);
+    self->encoded = malloc(sizeof(const char *) * N);
     if (self->encoded == NULL)
         return FALSE;
 
@@ -716,7 +716,7 @@ Catalog_load_mo(struct Catalog *self, const char *path)
         {
             p = p + strlen("charset=");
             len = strcspn(p, " \t\n");
-            self->mocodeset = (char *)malloc(len + 1);
+            self->mocodeset = malloc(len + 1);
             if (self->mocodeset == NULL)
                 return FALSE;
             memmove(self->mocodeset, p, len);
@@ -887,7 +887,7 @@ readfile(const char *path)
     if (fread(p, 1, fsize, f) != fsize)
     {
         fclose(f);
-        free((void *)p);
+        free(p);
         return NULL;
     }
 
@@ -987,7 +987,7 @@ str_iconv(const char *fromcode, const char *tocode, const char *str, size_t len)
 
 onerror:
     if (outbuf != NULL)
-        free((void *)outbuf);
+        free(outbuf);
     if (cd != (iconv_t)(-1))
         iconv_close(cd);
     return NULL;
