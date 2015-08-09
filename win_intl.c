@@ -558,6 +558,9 @@ Catalog_set_codeset(struct Catalog *self, const char *codeset)
     if (p == NULL)
         return FALSE;
 
+    if (self->codeset != NULL)
+        free((void *)self->codeset);
+
     self->codeset = p;
 
     if (self->encoded != NULL)
